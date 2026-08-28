@@ -1,0 +1,102 @@
+networks:
+  delivery-net:
+    driver: bridge
+
+volumes:
+  customer-postgres-data:
+  seller-postgres-data:
+
+services:
+
+  customer-postgres:
+    image: postgres:17-alpine
+    container_name: customer-postgres
+
+    environment:
+      POSTGRES_DB: customer_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - customer-postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+
+    networks:
+      - delivery-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d customer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  customer-ms:
+    image: emmanuelparis/customer-ms:1.0
+    container_name: customer-ms
+
+    environment:
+      DB_HOST: customer-postgres
+      DB_PORT: 5432
+      DB_NAME: customer_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+
+    ports:
+      - "8081:8081"
+
+    networks:
+      - delivery-net
+
+    depends_on:
+      customer-postgres:
+        condition: service_healthy
+
+  seller-postgres:
+    image: postgres:17-alpine
+    container_name: seller-postgres
+
+    environment:
+      POSTGRES_DB: seller_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - seller-postgres-data:/var/lib/postgresql/data
+
+    networks:
+      - delivery-net
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d seller_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  seller-ms:
+    image: emmanuelparis/seller-ms:1.0
+    container_name: seller-ms
+
+    environment:
+      DB_HOST: seller-postgres
+      DB_PORT: 5432
+      DB_NAME: seller_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+
+    ports:
+      - "8082:8082"
+
+    networks:
+      - delivery-net
+
+    depends_on:
+      seller-postgres:
+        condition: service_healthy
